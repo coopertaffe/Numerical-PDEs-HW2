@@ -18,7 +18,7 @@ alpha = 1.2;
 delta = @(x,y) (1 / (2 * pi * alpha^2)) * exp(-((x - x0).^2 + (y - y0).^2) / (2 * alpha^2));
 
 %vector of different step sizes or grid points
-NV = 2.^(2:4); 
+NV = 2.^(5:5); 
 hV = zeros(size(NV)); 
 
 Err_inf = zeros(size(NV));
@@ -31,7 +31,8 @@ for l=1:length(NV)
     y = linspace(a,b,N+1);
 
     % immersed boundary
-    N_ib = linspace(a_theta,b_theta,N);
+    NN = 128;
+    N_ib = linspace(a_theta,b_theta,NN);
     x_ib = pi + cos(N_ib);
     y_ib = pi + sin(N_ib);
 
@@ -52,6 +53,7 @@ row = [];
 col = [];
 val = [];
 
+tic
 for i=1:N-1
     for j=1:N-1
         k=idx(i,j);
@@ -94,7 +96,7 @@ end
 A = sparse(row,col,val,n,n);
 
 %% setting up the RHS vec
-RHS = zeros(n+N,1);
+RHS = zeros(n+NN,1);
 
 for j = 1:N-1
     for i = 1:N-1
@@ -134,21 +136,21 @@ for j = 1:N-1
 end
 
 %% Immersed boundary conditions
-for i = 1:N
+for i = 1:NN
     k = n+i;
     RHS(k) = u_exact(x_ib(i),y_ib(i));
 end
 
 % Writing apply method for matrix J
-apply_J = @(phi) J(phi,x,y,x_ib,y_ib,N,idx,delta);
+apply_J = @(phi) J(phi,x,y,x_ib,y_ib,N,NN,idx,delta);
 %apply_M = @(phi) M(phi,n,A,apply_J);
 apply_M = @(phi) [A*phi(1:n); apply_J(phi(1:n))];
 
 %% GMRES
-tol = .00001;
-badtol = .1;
-max_its = n;
+tol = .1*(h^2);
+max_its = n+NN;
 U = gmres(apply_M,RHS,[],tol,max_its);
+
 
 % Full grid, including boundary
 U_grid = zeros(N+1, N+1);
@@ -191,33 +193,34 @@ U_exact = u_exact(X,Y);
 Err_inf(l) = max(abs(U_grid' - U_exact), [], 'all');
 
 end
+toc
+Err_inf
+% %plotting
+% figure
+% loglog(NV, Err_inf, '-o', 'Color', [.267,.467,.667], 'LineWidth', 3, 'MarkerFaceColor', [.267,.467,.667],'MarkerSize',10)
+% hold on
+% shiftFactor = 0.5;   % how far below the curve to place the line (smaller = lower)
 
-%plotting
-figure
-loglog(NV, Err_inf, '-o', 'Color', [.267,.467,.667], 'LineWidth', 3, 'MarkerFaceColor', [.267,.467,.667],'MarkerSize',10)
-hold on
-shiftFactor = 0.5;   % how far below the curve to place the line (smaller = lower)
-
-% --- reference line: slope 1, short segment near the middle of the data ---
-p1 = 2;
-idx1 = 1:4;                      % pick a short window of NVec to draw the line over
-Nref1 = NV(idx1);
-C1 = shiftFactor * Err_inf(idx1(1)) * Nref1(1)^p1;
-ref1 = C1 ./ Nref1.^p1;
-loglog(Nref1, ref1,'--' , 'Color',[.4,.8,.933], 'LineWidth', 3)
+% % --- reference line: slope 1, short segment near the middle of the data ---
+% p1 = 2;
+% idx1 = 1:4;                      % pick a short window of NVec to draw the line over
+% Nref1 = NV(idx1);
+% C1 = shiftFactor * Err_inf(idx1(1)) * Nref1(1)^p1;
+% ref1 = C1 ./ Nref1.^p1;
+% loglog(Nref1, ref1,'--' , 'Color',[.4,.8,.933], 'LineWidth', 3)
 
 
-hold off
-xlabel('Grid Size (N)')
-ylabel('Relative Error')
-legend('Err_{\infty}','Reference Slope: -2', 'Location', 'northeast')
-grid on
+% hold off
+% xlabel('Grid Size (N)')
+% ylabel('Relative Error')
+% legend('Err_{\infty}','Reference Slope: -2', 'Location', 'northeast')
+% grid on
 
 
 % Writing apply method for matrix J
-function sigma = J(phi,x,y,x_ib,y_ib,N,idx,delta)
-    sigma = zeros(N,1);
-    for k = 1:N
+function sigma = J(phi,x,y,x_ib,y_ib,N,NN,idx,delta)
+    sigma = zeros(NN,1);
+    for k = 1:NN
         for j = 1:N-1
             for i = 1:N-1
                 dx = x_ib(k) - x(i);
