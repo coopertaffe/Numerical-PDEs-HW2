@@ -11,14 +11,8 @@ b = 2*pi;
 a_theta = 0;
 b_theta = 2*pi;
 
-% delta function
-x0=0;
-y0=0;
-alpha = 1.2;
-delta = @(x,y) (1 / (2 * pi * alpha^2)) * exp(-((x - x0).^2 + (y - y0).^2) / (2 * alpha^2));
-
 %vector of different step sizes or grid points
-NV = 2.^(5:5); 
+NV = 2.^(4:7); 
 hV = zeros(size(NV)); 
 
 Err_inf = zeros(size(NV));
@@ -31,16 +25,22 @@ for l=1:length(NV)
     y = linspace(a,b,N+1);
 
     % immersed boundary
-    NN = 128;
-    N_ib = linspace(a_theta,b_theta,NN);
+    NN = N;
+    N_ib = (0:NN-1)*(2*pi/NN);
+    %N_ib = linspace(a_theta,b_theta,NN);
     x_ib = pi + cos(N_ib);
     y_ib = pi + sin(N_ib);
 
+    % delta function
+    x0=0;
+    y0=0;
+    alpha = 1.2*h;
+    delta = @(x,y) (1 / (2 * pi * alpha)) * exp(-((x - x0).^2 + (y - y0).^2) / (2 * alpha));
+
 %% Method of manufactured solutions
-% u(x,y) = sinxcosy
-u_exact = @(x,y) sin(2*x).*cos(2*y);
+u_exact = @(x,y) cos(2*x).*sin(2*y);
 % f 
-f = @(x,y) -8*sin(2*x).*cos(2*y);
+f = @(x,y) -8*cos(2*x).*sin(2*y);
 
 % Number of interior grid points in each direction
 n = (N-1)^2;
@@ -53,7 +53,6 @@ row = [];
 col = [];
 val = [];
 
-tic
 for i=1:N-1
     for j=1:N-1
         k=idx(i,j);
@@ -141,15 +140,33 @@ for i = 1:NN
     RHS(k) = u_exact(x_ib(i),y_ib(i));
 end
 
+% % Boundary contributions to interpolation
+% for k = 1:NN
+%     BC_interp = 0;
+%     for j = 1:N+1
+%         for i = 1:N+1
+%             % Only include outer boundary points
+%             if i == 1 || i == N+1 || j == 1 || j == N+1
+%                 dx = x_ib(k) - x(i);
+%                 dy = y_ib(k) - y(j);
+
+%                 BC_interp = BC_interp + h^2*u_exact(x(i),y(j))*delta(dx,dy);
+%             end
+%         end
+%     end
+%     RHS(n+k) = RHS(n+k) - BC_interp;
+% end
+
+
 % Writing apply method for matrix J
 apply_J = @(phi) J(phi,x,y,x_ib,y_ib,N,NN,idx,delta);
-%apply_M = @(phi) M(phi,n,A,apply_J);
-apply_M = @(phi) [A*phi(1:n); apply_J(phi(1:n))];
+apply_S = @(Q) S(Q,x,y,x_ib,y_ib,N,NN,idx,delta);
+apply_M = @(phi) [A*phi(1:n) - (h^2)*apply_S(phi(n+1:n+NN)); apply_J(phi(1:n))];
 
 %% GMRES
 tol = .1*(h^2);
 max_its = n+NN;
-U = gmres(apply_M,RHS,[],tol,max_its);
+U = gmres(apply_M,RHS,n,tol,1);
 
 
 % Full grid, including boundary
@@ -193,47 +210,53 @@ U_exact = u_exact(X,Y);
 Err_inf(l) = max(abs(U_grid' - U_exact), [], 'all');
 
 end
-toc
-Err_inf
-% %plotting
-% figure
-% loglog(NV, Err_inf, '-o', 'Color', [.267,.467,.667], 'LineWidth', 3, 'MarkerFaceColor', [.267,.467,.667],'MarkerSize',10)
-% hold on
-% shiftFactor = 0.5;   % how far below the curve to place the line (smaller = lower)
 
-% % --- reference line: slope 1, short segment near the middle of the data ---
-% p1 = 2;
-% idx1 = 1:4;                      % pick a short window of NVec to draw the line over
-% Nref1 = NV(idx1);
-% C1 = shiftFactor * Err_inf(idx1(1)) * Nref1(1)^p1;
-% ref1 = C1 ./ Nref1.^p1;
-% loglog(Nref1, ref1,'--' , 'Color',[.4,.8,.933], 'LineWidth', 3)
+%plotting
+figure
+loglog(NV, Err_inf, '-o', 'Color', [.267,.467,.667], 'LineWidth', 3, 'MarkerFaceColor', [.267,.467,.667],'MarkerSize',10)
+hold on
+shiftFactor = 0.5;   % how far below the curve to place the line (smaller = lower)
+
+% --- reference line: slope 1, short segment near the middle of the data ---
+p1 = 2;
+idx1 = 1:4;                      % pick a short window of NVec to draw the line over
+Nref1 = NV(idx1);
+C1 = shiftFactor * Err_inf(idx1(1)) * Nref1(1)^p1;
+ref1 = C1 ./ Nref1.^p1;
+loglog(Nref1, ref1,'--' , 'Color',[.4,.8,.933], 'LineWidth', 3)
 
 
-% hold off
-% xlabel('Grid Size (N)')
-% ylabel('Relative Error')
-% legend('Err_{\infty}','Reference Slope: -2', 'Location', 'northeast')
-% grid on
+hold off
+xlabel('Grid Size (N)')
+ylabel('Relative Error')
+legend('Error','Reference Slope: -2', 'Location', 'northeast')
+grid on
 
 
 % Writing apply method for matrix J
 function sigma = J(phi,x,y,x_ib,y_ib,N,NN,idx,delta)
     sigma = zeros(NN,1);
+    h = (x(2)-x(1));
     for k = 1:NN
         for j = 1:N-1
             for i = 1:N-1
-                dx = x_ib(k) - x(i);
-                dy = y_ib(k) - y(j);
-                sigma(k) = sigma(k) +  phi(idx(i,j))*delta(dx,dy);
+                dx = x_ib(k)-x(i+1);
+                dy = y_ib(k)-y(j+1);
+                sigma(k) = sigma(k) +  (h^2)*phi(idx(i,j))*delta(dx,dy);
             end
         end
     end
 end
-%combine A and J
-% function y = M(phi,n,A,apply_J)
-%     %split phi
-%     phi1 = phi(1:n);
-
-%     y = [A*phi1;apply_J(phi1)];
-% end
+% Now the spreading matrix
+function sigma = S(Q,x,y,x_ib,y_ib,N,NN,idx,delta)
+    sigma = zeros((N-1)^2,1);
+    for k = 1:NN
+        for j = 1:N-1
+            for i = 1:N-1
+                dx = x_ib(k)-x(i+1);
+                dy = y_ib(k)-y(j+1);
+                sigma(idx(i,j)) = sigma(idx(i,j)) +  Q(k)*delta(dx,dy);
+            end
+        end
+    end
+end
