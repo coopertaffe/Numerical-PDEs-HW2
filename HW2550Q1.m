@@ -36,6 +36,7 @@ for l=1:length(NV)
     y0=0;
     alpha = 1.2*h;
     delta = @(x,y) (1 / (2 * pi * alpha)) * exp(-((x - x0).^2 + (y - y0).^2) / (2 * alpha));
+    %delta = @(x,y) delta_a(x,y,alpha,1e-4);
 
 %% Method of manufactured solutions
 u_exact = @(x,y) cos(2*x).*sin(2*y);
@@ -159,8 +160,8 @@ end
 
 
 % Writing apply method for matrix J
-apply_J = @(phi) J(phi,x,y,x_ib,y_ib,N,NN,idx,delta);
-apply_S = @(Q) S(Q,x,y,x_ib,y_ib,N,NN,idx,delta);
+apply_J = @(phi) J(phi,x,y,x_ib,y_ib,N,NN,idx,delta,alpha,1e-2);
+apply_S = @(Q) S(Q,x,y,x_ib,y_ib,N,NN,idx,delta,alpha,1e-2);
 apply_M = @(phi) [A*phi(1:n) - (h^2)*apply_S(phi(n+1:n+NN)); apply_J(phi(1:n))];
 
 %% GMRES
@@ -234,7 +235,7 @@ grid on
 
 
 % Writing apply method for matrix J
-function sigma = J(phi,x,y,x_ib,y_ib,N,NN,idx,delta)
+function sigma = J(phi,x,y,x_ib,y_ib,N,NN,idx,delta,alpha,tol)
     sigma = zeros(NN,1);
     h = (x(2)-x(1));
     for k = 1:NN
@@ -242,21 +243,41 @@ function sigma = J(phi,x,y,x_ib,y_ib,N,NN,idx,delta)
             for i = 1:N-1
                 dx = x_ib(k)-x(i+1);
                 dy = y_ib(k)-y(j+1);
-                sigma(k) = sigma(k) +  (h^2)*phi(idx(i,j))*delta(dx,dy);
+                r2 = (dx).^2 + (dy).^2;
+                if r2 < -2*alpha*log(2*pi*alpha*tol)
+                    sigma(k) = sigma(k) +  (h^2)*phi(idx(i,j))*delta(dx,dy); 
+                end
             end
         end
     end
 end
 % Now the spreading matrix
-function sigma = S(Q,x,y,x_ib,y_ib,N,NN,idx,delta)
+function sigma = S(Q,x,y,x_ib,y_ib,N,NN,idx,delta,alpha,tol)
     sigma = zeros((N-1)^2,1);
     for k = 1:NN
         for j = 1:N-1
             for i = 1:N-1
                 dx = x_ib(k)-x(i+1);
                 dy = y_ib(k)-y(j+1);
-                sigma(idx(i,j)) = sigma(idx(i,j)) +  Q(k)*delta(dx,dy);
+                r2 = (dx).^2 + (dy).^2;
+                if r2 < -2*alpha*log(2*pi*alpha*tol)
+                    sigma(idx(i,j)) = sigma(idx(i,j)) +  Q(k)*delta(dx,dy);
+                end
             end
         end
     end
 end
+
+% %% Charlies Rule
+% function d = delta_a(x,y,alpha,tol2)
+%     x0 = 0;
+%     y0 = 0;
+
+%     r2 = (x-x0).^2 + (y-y0).^2;
+
+%     if r2 < -2*alpha*log(2*pi*alpha*tol2)
+%         d = (1/(2*pi*alpha))*exp(-r2/(2*alpha));
+%     else
+%         d = 0;
+%     end
+% end
