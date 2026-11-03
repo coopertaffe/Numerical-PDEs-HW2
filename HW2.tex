@@ -1,0 +1,59 @@
+\documentclass[12pt]{article}
+\usepackage[left=0.9in,right=0.9in,top=0.8in,bottom=1.05in]{geometry}
+\newcommand{\ligne}[1]{\rule[0.5ex]{\textwidth}{#1}\\}
+\usepackage[]{graphicx}
+\usepackage{wrapfig}
+\usepackage{physics}
+
+\begin{document}
+\begin{flushright}
+    Cooper Taffe
+\end{flushright}
+\begin{center}
+\textbf{Numerical PDEs Homework \#2}\\
+\end{center}
+\noindent
+\vspace{0.3cm}
+\noindent \textbf{Problem 1: Verify HW0 Code} \\
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\linewidth]{HW2/HW2Problem1.png}
+    \caption{With the new manufactured solution, my HW0 code still gives us second order convergence.}
+    \label{fig1}
+\end{figure}
+
+\noindent \textbf{Problem 2: Poisson Equation with Immersed Boundary}\\
+a) After just adding the immersed boundary conditions, my code does not have second order convergence. I held the grid spaces with an N=32, then making the IB spacing N=8 the error was 2.1074 and the elapsed time was 0.698297 seconds. Then enlarging the IB spacing to N=128 the error was similar at 2.1036 but the elapsed time is now 19.503406 seconds, which is a lot longer. We kind of talked about this in class and a way to make it faster is to just let the delta function be 0 when the inputs are a reasonable distance away. \\
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{HW2/Q2Error.png}
+    \caption{Error using N=16,32,64,128. We can see this doesn't exactly follow the second order convergence check and we know that the immersed boundary has an error of $\Delta x^{1.5}$}
+    \label{fig2}
+\end{figure}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{HW2/Q2Solution.png}
+    \caption{Solution of u(x,y) using finite difference methods and an immersed boundary. The solution is found using $f(x,y)=-8\cos(2x)\sin(2y)$}
+    \label{fig3}
+\end{figure}
+
+\newpage
+\noindent \textbf{Problem 3:}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{HW2/problem3.png}
+    \caption{Solution of u(x,y) for f(x,y) = 0 and dirichlet boundary conditions. The solver uses finite difference methods and an immersed boundary.}
+    \label{fig3}
+\end{figure}
+\newpage
+\noindent \textbf{Problem 4: Charlie's Rule}\\
+I decided to try and speed up my code by only evaluating the delta function if it would be above a certain tolerance. Inside both the applyJ and applyS functions I used an if statement to see if delta would be greater than a given tolerance and then summed such $Q\delta$ and $\phi \delta$ terms, otherwise I just went to the next iteration. It seemed like it made the first couple iterations of Ns faster but at N=128 it didn't seem to go a lot faster. I also played with how low I could set the tolerance before the error was affected. I got to 0.01 without the error graph changing but at .1 the method was slower and the error was worse.\\
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{HW2/charliesrule.png}
+    \caption{Error using N=16,32,64,128 and only evaluating the delta function when greater than 0.01.}
+    \label{fig4}
+\end{figure}
+
+\end{document}
